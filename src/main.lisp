@@ -21,7 +21,8 @@
 	      (format t "Could not open MIDI.~%")
 	      (progn
 		(format t "Opened MIDI.~%")
-		(music:play-song *my-song*))))
+		(music:init-song *my-song*)
+		(music:test-loop *track1*))))
 	(jack:jack-client-close client)
 	(format t "Closed JACK.~%")
 	(cffi:foreign-free status))))
