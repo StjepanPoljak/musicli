@@ -6,6 +6,12 @@
 	   :JackNoStartServer
 	   :jack-client-close
 	   :jack-port-register
+	   :jack-set-process-callback
+	   :jack-activate
+	   :jack-port-get-buffer
+	   :jack-midi-clear-buffer
+	   :jack-midi-event-write
+	   :jack-deactivate
 	   :JackPortIsOutput))
 
 (in-package :jack)
@@ -59,6 +65,30 @@
   (port-type :string)
   (flags :unsigned-long)
   (buffer-size :unsigned-long))
+
+(cffi:defcfun ("jack_set_process_callback" jack-set-process-callback) :int
+  (client :pointer)
+  (process-callback :pointer)
+  (arg :pointer))
+
+(cffi:defcfun ("jack_activate" jack-activate) :int
+  (client :pointer))
+
+(cffi:defcfun ("jack_port_get_buffer" jack-port-get-buffer) :pointer
+  (port :pointer)
+  (nframes :uint32))
+
+(cffi:defcfun ("jack_midi_clear_buffer" jack-midi-clear-buffer) :void
+  (midi-port :pointer))
+
+(cffi:defcfun ("jack_midi_event_write" jack-midi-event-write) :int
+  (midi-port :pointer)
+  (nframes :uint32)
+  (data :pointer)
+  (data-size :size))
+
+(cffi:defcfun ("jack_deactivate" jack-deactivate) :int
+  (client :pointer))
 
 (cffi:defcfun ("jack_client_close" jack-client-close) :int
    (client :pointer))

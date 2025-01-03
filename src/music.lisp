@@ -57,17 +57,16 @@
   (beat-dur 0)
   )
 
-(defun nplay-cb (freq)
-  (format t "~a: PLAY: ~a~%" (get-internal-real-time) freq))
+(defun nplay-cb (note-event)
+  (format t "~a: PLAY: ~a~%" (sched:get-real-time-in-seconds) (note-freq (note-event-note note-event))))
 
-(defun nstop-cb (freq)
-  (format t "~a: STOP ~a~%" (get-internal-real-time) freq))
+(defun nstop-cb (note-event)
+  (format t "~a: STOP ~a~%" (sched:get-real-time-in-seconds) (note-freq (note-event-note note-event))))
 
 (defun process-seqn (seqn beat-dur nplay-evq)
   (let ((last-time 0))
     (loop for note in (seqn-notes seqn)
-	  do (let* ((freq (note-freq note))
-		    (dur (note-dur note))
+	  do (let* ((dur (note-dur note))
 		    (note-on-event (make-note-event :note note
 						    :note-state +note-on+))
 		    (note-off-event (make-note-event :note note
@@ -94,14 +93,15 @@
 (defun init-track-event-queue (track)
   (setf (track-evq track) (sched:make-event-queue :events nil)))
 
-(defun test-loop (track &optional (sleep-secs 0.05) (test-secs (sched:secs 5)))
-  (let ((start-time (get-internal-real-time)))
-    (loop while (> test-secs (- (get-internal-real-time) start-time))
+(defun test-loop (track &optional (sleep-secs 0.05) (test-secs 5))
+  (let ((start-time (sched:get-real-time-in-seconds)))
+    (loop while (> test-secs (- (sched:get-real-time-in-seconds) start-time))
 	  do (progn
 	       (setf (track-curr track)
 		     (sched:run-events-range (if (track-curr track)
 						 (track-curr track)
-						 (sched:event-queue-events (track-evq track)))))
+						 (sched:event-queue-events (track-evq track)))
+					     0 1))
 	       (sleep sleep-secs)))))
 
 (defun init-song (song)
