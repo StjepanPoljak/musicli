@@ -12,6 +12,8 @@
 	   :jack-midi-clear-buffer
 	   :jack-midi-event-write
 	   :jack-deactivate
+	   :jack-get-sample-rate
+	   :jack-last-frame-time
 	   :JackPortIsOutput))
 
 (in-package :jack)
@@ -72,6 +74,12 @@
   (arg :pointer))
 
 (cffi:defcfun ("jack_activate" jack-activate) :int
+  (client :pointer))
+
+(cffi:defcfun ("jack_last_frame_time" jack-last-frame-time) :uint32
+  (client :pointer))
+
+(cffi:defcfun ("jack_get_sample_rate" jack-get-sample-rate) :uint32
   (client :pointer))
 
 (cffi:defcfun ("jack_port_get_buffer" jack-port-get-buffer) :pointer
