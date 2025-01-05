@@ -12,14 +12,16 @@
 
 (cffi:defcstruct jack-cb-args
   (midi-out :pointer)
-  (client :pointer))
+  (client :pointer)
+  (sample-rate :uint32))
 
 (cffi:defcallback mycb :int ((nframes :uint32)
 			     (args :pointer))
-		  (cffi:with-foreign-slots ((client midi-out) args (:struct jack-cb-args))
-		    (let ((midi-out-port (jack:jack-port-get-buffer midi-out nframes)))
+		  (cffi:with-foreign-slots ((client midi-out sample-rate) args (:struct jack-cb-args))
+		    (let ((midi-out-port (jack:jack-port-get-buffer midi-out nframes))
+			  (last-frame-time (jack:jack-last-frame-time client)))
 		      (jack:jack-midi-clear-buffer midi-out-port)
-		      (format t "Processing ~A frames with argument ~A.~%" nframes args)))
+		      (format t "Processing ~A frames with last frame time ~A.~%" nframes last-frame-time)))
 		  ;unsigned char note_on[3] = {0x90, 60, 100}; // 0x90 = note-on, 60 = middle C, 100 = velocity
 					;jack_midi_event_write(midi_out_port, 0, note_on, sizeof(note_on));
 		    0)
@@ -27,7 +29,8 @@
 (defun musicli-main (client midi-out)
   (cffi:with-foreign-object (args '(:pointer (:struct jack-cb-args)))
     (setf (cffi:foreign-slot-value args '(:struct jack-cb-args) 'midi-out) midi-out
-	  (cffi:foreign-slot-value args '(:struct jack-cb-args) 'client) client)
+	  (cffi:foreign-slot-value args '(:struct jack-cb-args) 'client) client
+	  (cffi:foreign-slot-value args '(:struct jack-cb-args) 'sample-rate) (jack:jack-get-sample-rate client))
     (if (zerop (jack:jack-set-process-callback client (cffi:callback mycb) args))
 	(if (zerop (jack:jack-activate client))
 	    (progn
