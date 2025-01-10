@@ -1,10 +1,15 @@
 (defpackage :music
-  (:use :cl)
+  (:use :cl :bordeaux-threads)
   (:export :make-song
 	   :make-seqn
 	   :make-note
 	   :make-track
 	   :init-song
+	   :init-musicli-state
+	   :set-curr-song
+	   :get-curr-song
+	   :set-start-time
+	   :get-start-time
 	   :test-loop))
 
 (in-package :music)
@@ -56,6 +61,35 @@
   (tracks nil)
   (beat-dur 0)
   )
+
+;(defconstant +play-state-playing+ 2)
+;(defconstant +play-state-ready+ 1)
+;(defconstant +play-state-stopped+ 0)
+
+(defstruct musicli-state
+  (lock nil)
+  (start-time 0)
+  (curr-song nil))
+
+(defvar *musicli-state* (make-musicli-state))
+
+(defun init-musicli-state ()
+  (setf (musicli-state-lock *musicli-state*) (bt:make-lock)))
+
+(defun set-curr-song (song)
+  (bt:with-lock-held ((musicli-state-lock *musicli-state*))
+    (when (not (musicli-state-curr-song *musicli-state*))
+      (setf (musicli-state-curr-song *musicli-state*) song))))
+
+(defun get-curr-song ()
+  (bt:with-lock-held ((musicli-state-lock *musicli-state*))
+    (musicli-state-curr-song *musicli-state*)))
+
+(defun set-start-time (time)
+  (setf (musicli-state-start-time *musicli-state*) time))
+
+(defun get-start-time ()
+  (musicli-state-start-time *musicli-state*))
 
 (defun nplay-cb (note-event)
   (format t "~a: PLAY: ~a~%" (sched:get-real-time-in-seconds) (note-freq (note-event-note note-event))))

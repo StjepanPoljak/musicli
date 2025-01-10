@@ -3,6 +3,7 @@
 (load (merge-pathnames "quicklisp/setup.lisp" (truename "~/")))
 
 (quicklisp:quickload :cffi)
+(quicklisp:quickload :bordeaux-threads)
 
 (asdf:defsystem "musicli"
   :description "Music composition in Lisp"
@@ -11,7 +12,7 @@
   :version "0.1"
   :depends-on (:uiop)
   :components ((:file "src/sched")
-	       (:file "src/jack")
 	       (:file "src/music")
+       	       (:file "src/jack")
 	       (:file "src/main")))
 

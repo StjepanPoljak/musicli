@@ -1,20 +1,6 @@
 (defpackage :jack
   (:use :cl :cffi)
-  (:export :jack-client-open
-	   :jack-options-t
-	   :jack-status-t
-	   :JackNoStartServer
-	   :jack-client-close
-	   :jack-port-register
-	   :jack-set-process-callback
-	   :jack-activate
-	   :jack-port-get-buffer
-	   :jack-midi-clear-buffer
-	   :jack-midi-event-write
-	   :jack-deactivate
-	   :jack-get-sample-rate
-	   :jack-last-frame-time
-	   :JackPortIsOutput))
+  (:export :with-jack-midi))
 
 (in-package :jack)
 
@@ -100,3 +86,63 @@
 
 (cffi:defcfun ("jack_client_close" jack-client-close) :int
    (client :pointer))
+
+(cffi:defcstruct jack-cb-args
+  (midi-out :pointer)
+  (client :pointer)
+  (sample-rate :uint32))
+
+(defun get-frame-zero-time (client sample-rate)
+  (float (/ (jack-last-frame-time client) sample-rate)))
+
+;elapsed-time * nframes = n
+(cffi:defcallback jack-cb :int ((nframes :uint32)
+				(args :pointer))
+		  (cffi:with-foreign-slots ((client midi-out sample-rate) args (:struct jack-cb-args))
+					;		    (let* ((midi-out-port (jack-port-get-buffer midi-out nframes)))
+		    (when (music:get-curr-song)
+		      (when (zerop (music:get-start-time))
+			(music:set-start-time (get-frame-zero-time client sample-rate)))
+		      (let* ((midi-out-buffer (jack-port-get-buffer midi-out nframes)))
+			(jack-midi-clear-buffer midi-out-buffer))))
+;		      (format t "Processing ~A frames with last frame time ~A.~%" nframes frame-zero-time)))
+		  ;unsigned char note_on[3] = {0x90, 60, 100}; // 0x90 = note-on, 60 = middle C, 100 = velocity
+					;jack_midi_event_write(midi_out_port, 0, note_on, sizeof(note_on));
+		    0)
+
+(defmacro with-jack-midi (&body body)
+  `(run-jack-main (lambda () ,@body)))
+
+(defun start-jack-callbacks (client midi-out fn)
+  (cffi:with-foreign-object (args '(:pointer (:struct jack-cb-args)))
+    (setf (cffi:foreign-slot-value args '(:struct jack-cb-args) 'midi-out) midi-out
+	  (cffi:foreign-slot-value args '(:struct jack-cb-args) 'client) client
+	  (cffi:foreign-slot-value args '(:struct jack-cb-args) 'sample-rate) (jack-get-sample-rate client))
+    (if (zerop (jack-set-process-callback client (cffi:callback jack-cb) args))
+	(if (zerop (jack-activate client))
+	    (progn
+	      (music:init-musicli-state)
+	      (funcall fn)
+	      (jack-deactivate client))
+	    (format t "Could not activate JACK client.~%"))
+	(progn
+	  (format t "Could not set process callback.~%")
+	  (jack-deactivate client)))))
+
+(defun run-jack-main (fn)
+  (let* ((status (cffi:foreign-alloc :int))
+	 (client (jack-client-open "musicli-jack" JackNoStartServer status)))
+    (if (cffi:null-pointer-p client)
+	(format t "Could not open JACK.~%")
+	(progn
+	  (format t "Opened JACK (status: 0x~X).~%" (cffi:mem-ref status :int))
+	  (let ((midi-out (jack-port-register client "musicli-out" "8 bit raw midi" JackPortIsOutput 0)))
+	    (if (cffi:null-pointer-p midi-out)
+		(format t "Could not open MIDI.~%")
+		(progn
+		  (format t "Opened MIDI.~%")
+		  (start-jack-callbacks client midi-out fn))))
+	  (when (not (cffi:null-pointer-p client))
+	    (jack-client-close client)
+	    (format t "Closed JACK.~%"))
+	  (cffi:foreign-free status)))))
