@@ -12,4 +12,5 @@
 
 (jack:with-jack-midi ()
   (music:init-song *my-song*)
-  (music:test-loop *track1*))
+  (music:set-curr-song *my-song*)
+  (sleep 5))

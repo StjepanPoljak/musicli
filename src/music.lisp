@@ -10,6 +10,7 @@
 	   :get-curr-song
 	   :set-start-time
 	   :get-start-time
+	   :for-each-track
 	   :test-loop))
 
 (in-package :music)
@@ -127,16 +128,22 @@
 (defun init-track-event-queue (track)
   (setf (track-evq track) (sched:make-event-queue :events nil)))
 
-(defun test-loop (track &optional (sleep-secs 0.05) (test-secs 5))
-  (let ((start-time (sched:get-real-time-in-seconds)))
-    (loop while (> test-secs (- (sched:get-real-time-in-seconds) start-time))
-	  do (progn
-	       (setf (track-curr track)
-		     (sched:run-events-range (if (track-curr track)
-						 (track-curr track)
-						 (sched:event-queue-events (track-evq track)))
-					     0 1))
-	       (sleep sleep-secs)))))
+(defun for-each-track (track-cb)
+  (let* ((song (get-curr-song)))
+    (when song
+      (dolist (track (song-tracks song))
+	      (funcall track-cb track)))))
+
+;(defun test-loop (track &optional (sleep-secs 0.05) (test-secs 5))
+;  (let ((start-time (sched:get-real-time-in-seconds)))
+;    (loop while (> test-secs (- (sched:get-real-time-in-seconds) start-time))
+;	  do (progn
+;	       (setf (track-curr track)
+;		     (sched:run-events-range (if (track-curr track)
+;						 (track-curr track)
+;						 (sched:event-queue-events (track-evq track)))
+;					     0 1))
+;	       (sleep sleep-secs)))))
 
 (defun init-song (song)
   (init-beat-duration song)

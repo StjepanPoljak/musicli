@@ -95,16 +95,25 @@
 (defun get-frame-zero-time (client sample-rate)
   (float (/ (jack-last-frame-time client) sample-rate)))
 
-;elapsed-time * nframes = n
+(defun event-available (event-time elapsed-time nframes sample-rate)
+  (< event-time (+ (/ nframes sample-rate) elapsed-time)))
+
+(defun get-frame-slot (event-time elapsed-time nframes sample-rate)
+  (* (- event-time elapsed-time) sample-rate))
+
 (cffi:defcallback jack-cb :int ((nframes :uint32)
 				(args :pointer))
-		  (cffi:with-foreign-slots ((client midi-out sample-rate) args (:struct jack-cb-args))
-					;		    (let* ((midi-out-port (jack-port-get-buffer midi-out nframes)))
-		    (when (music:get-curr-song)
+		  (when (music:get-curr-song)
+		    (cffi:with-foreign-slots ((client midi-out sample-rate) args (:struct jack-cb-args))
 		      (when (zerop (music:get-start-time))
 			(music:set-start-time (get-frame-zero-time client sample-rate)))
-		      (let* ((midi-out-buffer (jack-port-get-buffer midi-out nframes)))
-			(jack-midi-clear-buffer midi-out-buffer))))
+		      (let* ((midi-out-buffer (jack-port-get-buffer midi-out nframes))
+			     (curr-time (get-frame-zero-time client sample-rate))
+			     (elapsed-time (- (music:get-start-time) curr-time)))
+			(jack-midi-clear-buffer midi-out-buffer)
+			(music:for-each-track #'(lambda(track)(progn
+							 (format t "~A~%" track)
+							 ))))))
 ;		      (format t "Processing ~A frames with last frame time ~A.~%" nframes frame-zero-time)))
 		  ;unsigned char note_on[3] = {0x90, 60, 100}; // 0x90 = note-on, 60 = middle C, 100 = velocity
 					;jack_midi_event_write(midi_out_port, 0, note_on, sizeof(note_on));

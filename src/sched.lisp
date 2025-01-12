@@ -16,6 +16,8 @@
   )
 
 (defstruct event-queue
+  (repeat-count 1)
+  (time-offset 0)
   (events nil)
   )
 
@@ -42,17 +44,30 @@
 		     (setf (event-queue-events evq) (rest (event-queue-events evq))))
 		   (sleep sleep-secs))))))
 
-(defun run-events-range (events &optional (time-range 0) (max-events 0))
-  (let ((event-count 0)
-	(event events))
+(defun run-event-queue-range (evq event-cb time-range)
+  (let* ((repeat-count (event-queue-repeat-count evq))
+	 (curr-count repeat-count)
+	 (next-event (event-queue-events evq)))
+    (loop while (or (eq repeat-count 0)
+		    (>= curr-count 1))
+	  do (let* ((result (run-events-range next-event event-cb (event-queue-time-offset evq) time-range))
+		    (event (car result)))
+	       (if (event)
+		   (setf next-event event)
+		   (progn
+		     (setf next-event (event-queue-events evq))
+		     (setf (event-queue-time-offset evq) (cdr result))
+		     (setq curr-count (- curr-count 1))))))))
+
+(defun run-events-range (events event-cb time-offset time-range)
+  (let ((event events)
+	(last-time 0))
     (loop while event
 	  do (progn
-	       (when (or (and (> time-range 0)
-			      (> (event-time (car event)) time-range))
-			 (and (> max-events 0)
-			      (<= max-events event-count)))
+	       (when (> (event-time (car event))
+			(- time-range time-offset))
 		 (return))
-	       (funcall (event-action (car event)) (event-data (car event)))
-	       (setq event-count (+ event-count 1))
+	       (funcall event-cb (event-data (car event)))
+	       (setf last-time (event-time (car event)))
 	       (setf event (cdr event))))
-    event))
+    (const event last-time)))
