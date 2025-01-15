@@ -1,5 +1,5 @@
-(defvar *seqn1-notes* (list (music:make-note :freq 440 :dur 1)
-			    (music:make-note :freq 550 :dur 1)))
+(defvar *seqn1-notes* (list (music:make-note :sym 'music::C4 :dur 1)
+			    (music:make-note :sym 'music::D4 :dur 1)))
 
 (defvar *seqn1* (music:make-seqn :name "test-seqn"
 				 :notes *seqn1-notes*))

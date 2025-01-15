@@ -95,11 +95,22 @@
 (defun get-frame-zero-time (client sample-rate)
   (float (/ (jack-last-frame-time client) sample-rate)))
 
-(defun event-available (event-time elapsed-time nframes sample-rate)
-  (< event-time (+ (/ nframes sample-rate) elapsed-time)))
+(defun get-frame-slot (event-time elapsed-time-total sample-rate)
+  (* (- event-time elapsed-time-total) sample-rate))
 
-(defun get-frame-slot (event-time elapsed-time nframes sample-rate)
-  (* (- event-time elapsed-time) sample-rate))
+(defun event-callback (event-data elapsed-time)
+  (let ((midi-message (cffi:foreign-alloc :uint8 :count 3))
+	(note (music:get-note-from-event event-data)))
+    (setf (cffi:mem-aref midi-message :uint8 0) (music:get-note-state event-data))
+    (setf (cffi:mem-aref midi-message :uint8 1) (music:get-note-midi-number note))
+    (setf (cffi:mem-aref midi-message :uint8 2) (music:get-note-velocity note))
+    (format t "~A: ~A (state: ~A)~%" elapsed-time (music:get-note-midi-number note) (music:get-note-state event-data))
+    (cffi:foreign-free midi-message)))
+
+(defun track-callback (track elapsed-time nframes-range-time)
+  (sched:run-event-queue-range (music:track-curr track)
+			       #'(lambda(event-data)(event-callback event-data elapsed-time))
+			       (+ elapsed-time nframes-range-time)))
 
 (cffi:defcallback jack-cb :int ((nframes :uint32)
 				(args :pointer))
@@ -109,14 +120,10 @@
 			(music:set-start-time (get-frame-zero-time client sample-rate)))
 		      (let* ((midi-out-buffer (jack-port-get-buffer midi-out nframes))
 			     (curr-time (get-frame-zero-time client sample-rate))
-			     (elapsed-time (- (music:get-start-time) curr-time)))
+			     (elapsed-time (- curr-time (music:get-start-time)))
+			     (nframes-range-time (float (/ nframes sample-rate))))
 			(jack-midi-clear-buffer midi-out-buffer)
-			(music:for-each-track #'(lambda(track)(progn
-							 (format t "~A~%" track)
-							 ))))))
-;		      (format t "Processing ~A frames with last frame time ~A.~%" nframes frame-zero-time)))
-		  ;unsigned char note_on[3] = {0x90, 60, 100}; // 0x90 = note-on, 60 = middle C, 100 = velocity
-					;jack_midi_event_write(midi_out_port, 0, note_on, sizeof(note_on));
+			(music:for-each-track #'(lambda(track)(track-callback track elapsed-time nframes-range-time))))))
 		    0)
 
 (defmacro with-jack-midi (&body body)

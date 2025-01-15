@@ -11,9 +11,16 @@
 	   :set-start-time
 	   :get-start-time
 	   :for-each-track
-	   :test-loop))
+	   :get-note-midi-number
+	   :get-note-state
+	   :get-note-from-event
+	   :get-note-velocity
+	   :track-evq
+	   :track-curr))
 
 (in-package :music)
+
+(defvar *note-names* '(C C# D D# E F F# G G# A A# B))
 
 (defmacro def-default (prefix)
   (let ((var-name (intern (concatenate 'string "*" (symbol-name prefix) "-NUM*")))
@@ -29,19 +36,25 @@
 (def-default track)
 
 (defstruct note
-  freq
+  sym
   dur
   (sus 0)
   (vel 127)
   )
 
-(defconstant +note-on+ 0)
-(defconstant +note-off+ 1)
+(defconstant +note-on+ #x90)
+(defconstant +note-off+ #x80)
 
 (defstruct note-event
   note
   note-state
   )
+
+(defun get-note-state (note-event)
+  (note-event-note-state note-event))
+
+(defun get-note-from-event (note-event)
+  (note-event-note note-event))
 
 (defstruct seqn
   (name (seqn-default))
@@ -63,19 +76,32 @@
   (beat-dur 0)
   )
 
-;(defconstant +play-state-playing+ 2)
-;(defconstant +play-state-ready+ 1)
-;(defconstant +play-state-stopped+ 0)
-
 (defstruct musicli-state
   (lock nil)
   (start-time 0)
+  (note-hash nil)
   (curr-song nil))
 
 (defvar *musicli-state* (make-musicli-state))
 
+(defun generate-notes ()
+  (let ((hash (make-hash-table :test 'eq)))
+    (dotimes (i 256)
+      (let* ((octave (floor i 12))
+             (note (nth (mod i 12) *note-names*))
+             (note-symbol (intern (format nil "~A~D" note octave) :music)))
+        (setf (gethash note-symbol hash) i)))
+    hash))
+
 (defun init-musicli-state ()
-  (setf (musicli-state-lock *musicli-state*) (bt:make-lock)))
+  (setf (musicli-state-lock *musicli-state*) (bt:make-lock))
+  (setf (musicli-state-note-hash *musicli-state*) (generate-notes)))
+
+(defun get-note-midi-number (note)
+  (gethash (note-sym note) (musicli-state-note-hash *musicli-state*)))
+
+(defun get-note-velocity (note)
+  (note-vel note))
 
 (defun set-curr-song (song)
   (bt:with-lock-held ((musicli-state-lock *musicli-state*))
@@ -92,31 +118,24 @@
 (defun get-start-time ()
   (musicli-state-start-time *musicli-state*))
 
-(defun nplay-cb (note-event)
-  (format t "~a: PLAY: ~a~%" (sched:get-real-time-in-seconds) (note-freq (note-event-note note-event))))
-
-(defun nstop-cb (note-event)
-  (format t "~a: STOP ~a~%" (sched:get-real-time-in-seconds) (note-freq (note-event-note note-event))))
-
 (defun process-seqn (seqn beat-dur nplay-evq)
   (let ((last-time 0))
     (loop for note in (seqn-notes seqn)
 	  do (let* ((dur (note-dur note))
 		    (note-on-event (make-note-event :note note
 						    :note-state +note-on+))
-		    (note-off-event (make-note-event :note note
-						     :note-state +note-off+))
+
 		    (on-event (sched:make-event :time last-time
-						:action #'nplay-cb
-						:data note-on-event))
-		    (off-event (sched:make-event :time last-time
-						 :action #'nstop-cb
-						 :data note-off-event)))
+						:data note-on-event)))
 	       (sched:insert-event :evq nplay-evq
 				   :event on-event)
 	       (setf last-time (+ last-time (* beat-dur dur)))
-	       (sched:insert-event :evq nplay-evq
-				   :event off-event)))))
+	       (let* ((note-off-event (make-note-event :note note
+						      :note-state +note-off+))
+		      (off-event (sched:make-event :time last-time
+						   :data note-off-event)))
+		 (sched:insert-event :evq nplay-evq
+				     :event off-event))))))
 
 (defun process-track (track beat-dur)
   (loop for seqn in (track-seqns track)
@@ -126,24 +145,14 @@
   (setf (song-beat-dur song) (* 4 (/ 60 (song-tempo song)))))
 
 (defun init-track-event-queue (track)
-  (setf (track-evq track) (sched:make-event-queue :events nil)))
+  (setf (track-evq track) (sched:make-event-queue :events nil))
+  (setf (track-curr track) (track-evq track)))
 
 (defun for-each-track (track-cb)
   (let* ((song (get-curr-song)))
     (when song
       (dolist (track (song-tracks song))
 	      (funcall track-cb track)))))
-
-;(defun test-loop (track &optional (sleep-secs 0.05) (test-secs 5))
-;  (let ((start-time (sched:get-real-time-in-seconds)))
-;    (loop while (> test-secs (- (sched:get-real-time-in-seconds) start-time))
-;	  do (progn
-;	       (setf (track-curr track)
-;		     (sched:run-events-range (if (track-curr track)
-;						 (track-curr track)
-;						 (sched:event-queue-events (track-evq track)))
-;					     0 1))
-;	       (sleep sleep-secs)))))
 
 (defun init-song (song)
   (init-beat-duration song)
