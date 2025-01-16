@@ -10,7 +10,7 @@
 (defvar *my-song* (music:make-song :tempo 120
 				   :tracks (list *track1*)))
 
-(jack:with-jack-midi ()
+(jack:with-jack-midi "yoshimi:midi in" ()
   (music:init-song *my-song*)
   (music:set-curr-song *my-song*)
   (sleep 5))
