@@ -15,7 +15,7 @@
   (data nil))
 
 (defstruct event-queue
-  (repeat-count 1)
+  (repeat-count 5)
   (time-offset 0)
   (events nil)
   (curr-events nil))
@@ -41,7 +41,7 @@
     (setf (event-queue-curr-events evq) (event-queue-events evq)))
   (let* ((repeat-count (event-queue-repeat-count evq))
 	 (curr-count repeat-count))
-    (loop while (or (eq repeat-count 0)
+    (loop while (or (eq repeat-count -1)
 		    (>= curr-count 1))
 	  do (let* ((result (run-events-range (event-queue-curr-events evq) event-cb (event-queue-time-offset evq) time-range))
 		    (event (run-events-range-result-event result))
@@ -53,8 +53,9 @@
 		       (setf (event-queue-curr-events evq) event))
 		   (progn
 		     (setf (event-queue-curr-events evq) (event-queue-events evq))
-		     (setf (event-queue-time-offset evq) last-time)
-		     (setf curr-count (- curr-count 1))))))))
+		     (setf (event-queue-time-offset evq) (+ (event-queue-time-offset evq) last-time))
+		     (setf curr-count (- curr-count 1))
+		     (setf (event-queue-repeat-count evq) curr-count)))))))
 
 (defun run-events-range (events event-cb time-offset time-range)
   (let ((event events)

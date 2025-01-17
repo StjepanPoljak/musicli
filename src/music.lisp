@@ -14,7 +14,7 @@
 	   :get-note-midi-number
 	   :get-note-state
 	   :get-note-from-event
-	   :get-note-velocity
+	   :get-note-event-velocity
 	   :track-evq
 	   :track-curr))
 
@@ -79,6 +79,7 @@
 (defstruct musicli-state
   (lock nil)
   (start-time 0)
+  (cleanup 0)
   (note-hash nil)
   (curr-song nil))
 
@@ -103,14 +104,27 @@
 (defun get-note-velocity (note)
   (note-vel note))
 
+(defun get-note-event-velocity (note-event)
+  (if (eq (get-note-state note-event) +note-off+)
+      0
+    (get-note-velocity (get-note-from-event note-event))))
+
 (defun set-curr-song (song)
   (bt:with-lock-held ((musicli-state-lock *musicli-state*))
-    (when (not (musicli-state-curr-song *musicli-state*))
-      (setf (musicli-state-curr-song *musicli-state*) song))))
+    (when (not song)
+      (setf (musicli-state-cleanup *musicli-state*) 0))
+    (setf (musicli-state-curr-song *musicli-state*) song)))
 
 (defun get-curr-song ()
   (bt:with-lock-held ((musicli-state-lock *musicli-state*))
     (musicli-state-curr-song *musicli-state*)))
+
+(defun wait-cleanup ()
+  (let ((local-cleanup 1))
+    (loop while (eq local-cleanup 1)
+	  do (bt:with-lock-held ((musicli-state-lock *musicli-state*))
+	       (setf local-cleanup (musicli-state-cleanup *musicli-state*))
+	       (sleep 0.5)))))
 
 (defun set-start-time (time)
   (setf (musicli-state-start-time *musicli-state*) time))

@@ -13,4 +13,6 @@
 (jack:with-jack-midi "yoshimi:midi in" ()
   (music:init-song *my-song*)
   (music:set-curr-song *my-song*)
-  (sleep 5))
+  (sleep 10)
+  (music:set-curr-song nil)
+  (music:set-start-time 0))
