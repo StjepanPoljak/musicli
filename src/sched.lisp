@@ -6,6 +6,7 @@
 	   :make-event
 	   :run-event-queue-range
 	   :run-events-range
+	   :event-queue-done
 	   :event-queue-events))
 
 (in-package :sched)
@@ -19,6 +20,9 @@
   (time-offset 0)
   (events nil)
   (curr-events nil))
+
+(defun event-queue-done (evq)
+  (zerop (event-queue-repeat-count evq)))
 
 (defun insert-event (&key evq event)
   (setf (event-queue-events evq) (sort (cons event (event-queue-events evq))

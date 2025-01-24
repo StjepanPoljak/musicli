@@ -15,6 +15,8 @@
 	   :get-note-state
 	   :get-note-from-event
 	   :get-note-event-velocity
+	   :finish-cleanup
+	   :wait-done
 	   :track-evq
 	   :track-curr))
 
@@ -111,20 +113,32 @@
 
 (defun set-curr-song (song)
   (bt:with-lock-held ((musicli-state-lock *musicli-state*))
-    (when (not song)
-      (setf (musicli-state-cleanup *musicli-state*) 0))
     (setf (musicli-state-curr-song *musicli-state*) song)))
 
 (defun get-curr-song ()
   (bt:with-lock-held ((musicli-state-lock *musicli-state*))
     (musicli-state-curr-song *musicli-state*)))
 
+(defun finish-cleanup ()
+  (set-cleanup-to 2))
+
+(defun set-cleanup-to (state)
+  (bt:with-lock-held ((musicli-state-lock *musicli-state*))
+		     (setf (musicli-state-cleanup *musicli-state*) state)))
+
+(defun wait-done ()
+  (loop while (get-curr-song)
+	do (sleep 0.5))
+  (format t "Song done, waiting for cleanup.~%")
+  (wait-cleanup))
+
 (defun wait-cleanup ()
   (let ((local-cleanup 1))
-    (loop while (eq local-cleanup 1)
+    (loop while (<= local-cleanup 1)
 	  do (bt:with-lock-held ((musicli-state-lock *musicli-state*))
 	       (setf local-cleanup (musicli-state-cleanup *musicli-state*))
-	       (sleep 0.5)))))
+	       (sleep 0.5)))
+    (set-cleanup-to 0)))
 
 (defun set-start-time (time)
   (setf (musicli-state-start-time *musicli-state*) time))
@@ -163,10 +177,15 @@
   (setf (track-curr track) (track-evq track)))
 
 (defun for-each-track (track-cb)
-  (let* ((song (get-curr-song)))
+  (let ((tracks-done t)
+	(song (get-curr-song)))
     (when song
       (dolist (track (song-tracks song))
-	      (funcall track-cb track)))))
+	(progn
+	  (funcall track-cb track)
+	  (when (sched:event-queue-done (track-evq track))
+	    (setf tracks-done nil)))))
+    tracks-done))
 
 (defun init-song (song)
   (init-beat-duration song)
