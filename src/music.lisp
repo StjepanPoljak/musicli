@@ -101,7 +101,11 @@
   (setf (musicli-state-note-hash *musicli-state*) (generate-notes)))
 
 (defun get-note-midi-number (note)
-  (gethash (note-sym note) (musicli-state-note-hash *musicli-state*)))
+  (let ((syms (note-sym note))
+	(note-hash (musicli-state-note-hash *musicli-state*)))
+    (if (listp syms)
+	(map 'list #'(lambda(sym)(gethash sym note-hash)) syms)
+      (list (gethash syms note-hash)))))
 
 (defun get-note-velocity (note)
   (note-vel note))

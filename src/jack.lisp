@@ -134,11 +134,10 @@
 
 (defun event-callback (midi-out-buffer event-data elapsed-time)
   (let* ((note (music:get-note-from-event event-data))
-	 (midi-message (list
-			(music:get-note-state event-data)
-			(music:get-note-midi-number note)
-			(music:get-note-event-velocity event-data))))
-    (send-midi-message midi-out-buffer midi-message elapsed-time)))
+	 (note-state (music:get-note-state event-data))
+	 (velocity (music:get-note-event-velocity event-data)))
+    (dolist (midi-num (music:get-note-midi-number note))
+      (send-midi-message midi-out-buffer (list note-state midi-num velocity) elapsed-time))))
 
 (defun track-callback (track elapsed-time nframes-range-time midi-out-buffer)
   (sched:run-event-queue-range (music:track-curr track)
