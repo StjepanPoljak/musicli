@@ -175,9 +175,10 @@
 (cffi:defcallback jack-cb :int ((nframes :uint32)
 				(args :pointer))
 		  (cffi:with-foreign-slots ((client midi-out sample-rate) args (:struct jack-cb-args))
-		    (if (music:get-curr-song)
-			(jack-cb-send-events nframes client midi-out sample-rate)
-		      (jack-cb-stop-event midi-out nframes)))
+		    (music:with-musicli-lock
+			(if (music:get-curr-song)
+			    (jack-cb-send-events nframes client midi-out sample-rate)
+			  (jack-cb-stop-event midi-out nframes))))
 		  0)
 
 (defmacro with-jack-midi (&optional (auto-connect nil) &body body)
@@ -202,7 +203,6 @@
 	    (progn
 	      (when auto-connect
 		(connect-to client auto-connect))
-	      (music:init-musicli-state)
 	      (funcall fn)
 	      (jack-deactivate client))
 	  (format t "Could not activate JACK client.~%"))

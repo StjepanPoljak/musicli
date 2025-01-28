@@ -14,5 +14,6 @@
   :components ((:file "src/sched")
 	       (:file "src/music")
        	       (:file "src/jack")
+	       (:file "src/chords")
 	       (:file "src/main")))
 

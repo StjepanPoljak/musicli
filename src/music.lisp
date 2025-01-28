@@ -11,12 +11,16 @@
 	   :set-start-time
 	   :get-start-time
 	   :for-each-track
+	   :get-note-sym-midi-number
 	   :get-note-midi-number
+	   :get-midi-note-symbol
 	   :get-note-state
 	   :get-note-from-event
 	   :get-note-event-velocity
 	   :finish-cleanup
+	   :with-musicli-lock
 	   :wait-done
+	   :play-song
 	   :track-evq
 	   :track-curr))
 
@@ -83,29 +87,39 @@
   (start-time 0)
   (cleanup 0)
   (note-hash nil)
+  (reverse-note-hash nil)
   (curr-song nil))
 
 (defvar *musicli-state* (make-musicli-state))
 
 (defun generate-notes ()
-  (let ((hash (make-hash-table :test 'eq)))
+  (let ((hash (make-hash-table :test 'eq))
+	(reverse-hash (make-hash-table :test 'eq)))
     (dotimes (i 256)
       (let* ((octave (floor i 12))
              (note (nth (mod i 12) *note-names*))
              (note-symbol (intern (format nil "~A~D" note octave) :music)))
-        (setf (gethash note-symbol hash) i)))
-    hash))
+        (setf (gethash note-symbol hash) i)
+	(setf (gethash i reverse-hash) note-symbol)))
+    (cons hash (cons reverse-hash nil))))
 
 (defun init-musicli-state ()
   (setf (musicli-state-lock *musicli-state*) (bt:make-lock))
-  (setf (musicli-state-note-hash *musicli-state*) (generate-notes)))
+  (let ((res (generate-notes)))
+    (setf (musicli-state-note-hash *musicli-state*) (car res))
+    (setf (musicli-state-reverse-note-hash *musicli-state*) (car (cdr res)))))
+
+(defun get-note-sym-midi-number (note-sym)
+  (gethash note-sym (musicli-state-note-hash *musicli-state*)))
 
 (defun get-note-midi-number (note)
-  (let ((syms (note-sym note))
-	(note-hash (musicli-state-note-hash *musicli-state*)))
+  (let ((syms (note-sym note)))
     (if (listp syms)
-	(map 'list #'(lambda(sym)(gethash sym note-hash)) syms)
-      (list (gethash syms note-hash)))))
+	(map 'list #'(lambda(sym)(get-note-sym-midi-number sym)) syms)
+      (list (get-note-sym-midi-number syms)))))
+
+(defun get-midi-note-symbol (midi-num)
+  (gethash midi-num (musicli-state-reverse-note-hash *musicli-state*)))
 
 (defun get-note-velocity (note)
   (note-vel note))
@@ -115,20 +129,20 @@
       0
     (get-note-velocity (get-note-from-event note-event))))
 
+(defmacro with-musicli-lock (&body body)
+  `(bt:with-lock-held ((musicli-state-lock *musicli-state*)) ,@body))
+
 (defun set-curr-song (song)
-  (bt:with-lock-held ((musicli-state-lock *musicli-state*))
-    (setf (musicli-state-curr-song *musicli-state*) song)))
+  (setf (musicli-state-curr-song *musicli-state*) song))
 
 (defun get-curr-song ()
-  (bt:with-lock-held ((musicli-state-lock *musicli-state*))
-    (musicli-state-curr-song *musicli-state*)))
+  (musicli-state-curr-song *musicli-state*))
 
 (defun finish-cleanup ()
   (set-cleanup-to 2))
 
 (defun set-cleanup-to (state)
-  (bt:with-lock-held ((musicli-state-lock *musicli-state*))
-		     (setf (musicli-state-cleanup *musicli-state*) state)))
+  (setf (musicli-state-cleanup *musicli-state*) state))
 
 (defun wait-done ()
   (loop while (get-curr-song)
@@ -139,7 +153,7 @@
 (defun wait-cleanup ()
   (let ((local-cleanup 1))
     (loop while (<= local-cleanup 1)
-	  do (bt:with-lock-held ((musicli-state-lock *musicli-state*))
+	  do (with-musicli-lock
 	       (setf local-cleanup (musicli-state-cleanup *musicli-state*))
 	       (sleep 0.5)))
     (set-cleanup-to 0)))
@@ -196,3 +210,9 @@
   (dolist (track (song-tracks song))
     (init-track-event-queue track)
     (process-track track (song-beat-dur song))))
+
+(defun play-song (song)
+  (with-musicli-lock
+    (music:init-song song)
+    (music:set-curr-song song))
+  (music:wait-done))
