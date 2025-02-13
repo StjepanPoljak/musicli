@@ -107,6 +107,10 @@
   (client :pointer)
   (sample-rate :uint32))
 
+(defvar musicli-port-name "musicli-out")
+(defvar musicli-client-name "musicli-jack")
+(defvar *jack-cb-playing* nil)
+
 (defun get-frame-zero-time (client sample-rate)
   (float (/ (jack-last-frame-time client) sample-rate)))
 
@@ -132,19 +136,29 @@
 (defun midi-all-notes-off (midi-out-buffer channel)
   (send-midi-message midi-out-buffer (list (logior #xB0 channel) 123 0)))
 
-(defun event-callback (midi-out-buffer event-data elapsed-time)
+(defun midi-select (midi-out-buffer channel bank program)
+  (format t "Running MIDI select on channel: ~A bank: ~A program: ~A~%" channel bank program)
+  (send-midi-message midi-out-buffer (list (logior #xB0 channel) 0 (logand (ash bank -7) #x7F)))
+  (send-midi-message midi-out-buffer (list (logior #xB0 channel) 32 (logand bank #x7F)))
+  (send-midi-message midi-out-buffer (list #x20 0))
+  (send-midi-message midi-out-buffer (list (logior #xC0 channel) program)))
+
+(defun event-callback (midi-out-buffer channel event-data elapsed-time)
   (let* ((note (music:get-note-from-event event-data))
 	 (note-state (music:get-note-state event-data))
 	 (velocity (music:get-note-event-velocity event-data)))
     (dolist (midi-num (music:get-note-midi-number note))
-      (send-midi-message midi-out-buffer (list note-state midi-num velocity) elapsed-time))))
+      (send-midi-message midi-out-buffer (list (logior note-state channel) midi-num velocity) elapsed-time))))
 
 (defun track-callback (track elapsed-time nframes-range-time midi-out-buffer)
-  (sched:run-event-queue-range (music:track-curr track)
-			       #'(lambda(event-data)(event-callback midi-out-buffer event-data elapsed-time))
-			       (+ elapsed-time nframes-range-time)))
-
-(defvar *jack-cb-playing* nil)
+  (let* ((instr (music:get-track-instr track))
+	 (channel (instr:get-instr-channel instr)))
+    (when (not (instr:instr-was-cached instr))
+      (apply #'midi-select (cons midi-out-buffer (instr:get-instr-select-args instr)))
+      (instr:mark-instr-cached instr))
+    (sched:run-event-queue-range (music:track-curr track)
+				 #'(lambda(event-data)(event-callback midi-out-buffer channel event-data elapsed-time))
+				 (+ elapsed-time nframes-range-time))))
 
 (defun jack-cb-send-events (nframes client midi-out sample-rate)
   (setq *jack-cb-playing* t)
@@ -183,9 +197,6 @@
 
 (defmacro with-jack-midi (&optional (auto-connect nil) &body body)
   `(run-jack-main ,auto-connect (lambda () ,@body)))
-
-(defvar musicli-port-name "musicli-out")
-(defvar musicli-client-name "musicli-jack")
 
 (defun connect-to (client dest-name)
   (format t "Attempting to connect ~A to ~A...~%" musicli-port-name dest-name)

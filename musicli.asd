@@ -12,6 +12,7 @@
   :version "0.1"
   :depends-on (:uiop)
   :components ((:file "src/sched")
+	       (:file "src/instr")
 	       (:file "src/music")
        	       (:file "src/jack")
 	       (:file "src/chords")

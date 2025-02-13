@@ -19,6 +19,7 @@
 	   :get-note-event-velocity
 	   :finish-cleanup
 	   :with-musicli-lock
+	   :get-track-instr
 	   :wait-done
 	   :play-song
 	   :track-evq
@@ -69,7 +70,7 @@
 
 (defstruct track
   (name (track-default))
-  (instr "piano")
+  (instr-name nil)
   (seqns nil)
   (evq nil)
   (curr nil)
@@ -88,7 +89,8 @@
   (cleanup 0)
   (note-hash nil)
   (reverse-note-hash nil)
-  (curr-song nil))
+  (curr-song nil)
+  )
 
 (defvar *musicli-state* (make-musicli-state))
 
@@ -170,7 +172,6 @@
 	  do (let* ((dur (note-dur note))
 		    (note-on-event (make-note-event :note note
 						    :note-state +note-on+))
-
 		    (on-event (sched:make-event :time last-time
 						:data note-on-event)))
 	       (sched:insert-event :evq nplay-evq
@@ -216,3 +217,6 @@
     (music:init-song song)
     (music:set-curr-song song))
   (music:wait-done))
+
+(defun get-track-instr (track)
+  (instr:get-instr-by-name (track-instr-name track)))
