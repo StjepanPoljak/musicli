@@ -19,7 +19,7 @@
     (loop while (> inv-num 0)
 	  do (progn
 	       (setf inv-num (- inv-num 1))
-	       (setf inv (append (cdr inv) (list (- (car inv) 12))))))
+	       (setf inv (append (cdr inv) (list (+ (car inv) 12))))))
     inv))
 
 (defun create (root-note chord-name &optional (inversion 0))
