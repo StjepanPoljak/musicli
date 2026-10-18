@@ -25,9 +25,9 @@
   (zerop (event-queue-repeat-count evq)))
 
 (defun insert-event (&key evq event)
-  (setf (event-queue-events evq) (sort (cons event (event-queue-events evq))
-				       #'(lambda (e1 e2) (< (event-time e1)
-							    (event-time e2))))))
+  (setf (event-queue-events evq) (stable-sort (append (event-queue-events evq) (list event))
+					      #'(lambda (e1 e2) (< (event-time e1)
+								   (event-time e2))))))
 
 (defun run-events (evq)
   (run-events-range evq))
