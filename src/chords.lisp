@@ -11,10 +11,14 @@
     (maj '(0 4 7))
     (min '(0 3 7))
     (dim '(0 3 6))
+    (aug '(0 4 8))
+    (maj7 '(0 4 7 11))
+    (min7 '(0 3 7 10))
+    (minmaj7 '(0 3 7 11))
     (otherwise nil)))
 
 (defun invert (chord-midi inversion)
-  (let ((inv-num (mod inversion (length chord-midi)))
+  (let ((inv-num (if chord-midi (mod inversion (length chord-midi)) 0))
 	(inv chord-midi))
     (loop while (> inv-num 0)
 	  do (progn
