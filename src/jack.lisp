@@ -140,7 +140,6 @@
   (format t "Running MIDI select on channel: ~A bank: ~A program: ~A~%" channel bank program)
   (send-midi-message midi-out-buffer (list (logior #xB0 channel) 0 (logand (ash bank -7) #x7F)))
   (send-midi-message midi-out-buffer (list (logior #xB0 channel) 32 (logand bank #x7F)))
-  (send-midi-message midi-out-buffer (list #x20 0))
   (send-midi-message midi-out-buffer (list (logior #xC0 channel) program)))
 
 (defun event-callback (midi-out-buffer channel event-data elapsed-time)
