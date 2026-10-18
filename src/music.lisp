@@ -217,6 +217,7 @@
 (defun play-song (song)
   (with-musicli-lock
     (music:init-song song)
+    (music:set-start-time 0)
     (music:set-curr-song song))
   (music:wait-done))
 
