@@ -23,8 +23,8 @@
   (midi-port nil)
   )
 
-(defvar *instr-hash* (make-hash-table :test 'eq))
-(defvar *out-client-hash* (make-hash-table :test 'eq))
+(defvar *instr-hash* (make-hash-table :test 'equal))
+(defvar *out-client-hash* (make-hash-table :test 'equal))
 
 (defun get-instr-select-args (instr)
   (list (instr-channel instr) (instr-bank instr) (instr-program instr)))
