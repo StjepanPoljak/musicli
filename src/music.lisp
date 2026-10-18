@@ -196,15 +196,15 @@
   (setf (track-curr track) (track-evq track)))
 
 (defun for-each-track (track-cb)
-  (let ((tracks-done t)
+  (let ((tracks-playing nil)
 	(song (get-curr-song)))
     (when song
       (dolist (track (song-tracks song))
 	(progn
 	  (funcall track-cb track)
-	  (when (sched:event-queue-done (track-evq track))
-	    (setf tracks-done nil)))))
-    tracks-done))
+	  (when (not (sched:event-queue-done (track-evq track)))
+	    (setf tracks-playing t)))))
+    tracks-playing))
 
 (defun init-song (song)
   (init-beat-duration song)
