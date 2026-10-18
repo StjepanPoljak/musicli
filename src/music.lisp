@@ -155,9 +155,11 @@
 (defun wait-cleanup ()
   (let ((local-cleanup 1))
     (loop while (<= local-cleanup 1)
-	  do (with-musicli-lock
-	       (setf local-cleanup (musicli-state-cleanup *musicli-state*))
-	       (sleep 0.5)))
+	  do (progn
+	       (with-musicli-lock
+		 (setf local-cleanup (musicli-state-cleanup *musicli-state*)))
+	       (when (<= local-cleanup 1)
+		 (sleep 0.5))))
     (set-cleanup-to 0)))
 
 (defun set-start-time (time)
